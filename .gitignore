@@ -3,3 +3,7 @@ dist/
 .astro/
 .DS_Store
 *.log
+
+# Local design brief / agent instructions — kept out of the public repo
+CLAUDE.md
+screenshots/
