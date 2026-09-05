@@ -1,0 +1,41 @@
+/*
+ * Self-hosted, latin-subset webfonts.
+ *
+ * These are Google's `latin` slices, not the full families: the vietnamese,
+ * cyrillic and latin-ext ranges are dropped. The unicode-range declarations
+ * are kept so a browser only fetches a file when the page actually needs a
+ * glyph from that range.
+ *
+ * Newsreader is the variable cut carrying the optical-size axis (opsz 6..72).
+ * It costs ~35KB more than the static 400 instance and earns it: with
+ * `font-optical-sizing: auto` the browser moves along that axis with the type
+ * size, so the display sizes get the tighter spacing, finer hairlines and
+ * smaller apertures that a text cut would not give them - and the 17px body
+ * copy still gets the sturdier text cut. Pinning `font-variation-settings`
+ * anywhere would defeat this, so nothing does.
+ *
+ * One weight each, deliberately. Anything the design needs beyond regular
+ * should be a real cut added here, not a synthesised faux-bold.
+ */
+
+@font-face {
+  font-family: 'Newsreader';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/newsreader-var-opsz-400-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/ibm-plex-mono-400-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}

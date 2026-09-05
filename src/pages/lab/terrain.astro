@@ -1,0 +1,290 @@
+---
+import '../../styles/tokens.css';
+import '../../styles/fonts.css';
+import { VARIANTS } from '../../terrain/variants';
+
+const controls = [
+  { id: 'noiseScale', label: 'noise scale', min: 10, max: 80, step: 1, value: 34,
+    hint: 'world units per feature' },
+  { id: 'octaves', label: 'octaves', min: 1, max: 6, step: 1, value: 4,
+    hint: 'layers of noise summed' },
+  { id: 'slopeCost', label: 'slope cost', min: 0, max: 40, step: 0.5, value: 10,
+    hint: '0 = straight line, high = hugs contours' },
+  { id: 'gridRes', label: 'grid res', min: 24, max: 80, step: 8, value: 48,
+    hint: 'cells per axis; drives mesh and planner' },
+];
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>terrain + route planner — lab</title>
+    <link
+      rel="preload"
+      href="/fonts/newsreader-var-opsz-400-latin.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="/fonts/ibm-plex-mono-400-latin.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+  </head>
+  <body>
+    <div class="wrap">
+      <main>
+        <header>
+          <p class="label">lab / 01</p>
+          <h1>Terrain and route planner</h1>
+          <p class="lede">
+            Marching cubes over layered 3D noise, and an A* route replanned across the resulting
+            heightfield every time the ground moves. Move the cursor over a scene to raise a mound
+            under it and the route bends off the new grade — at these settings it takes the flank
+            rather than going the whole way around. Slope cost is the control that really bites:
+            from 0 to 40 the same route goes from 116 to 191 units long and drops its total climb
+            from 77 to 47. Scroll and the noise offset shifts, so everything keeps evolving. All
+            three run the same field parameters — only camera, terrain scale, and route contrast
+            differ.
+          </p>
+        </header>
+
+        {VARIANTS.map((v) => (
+          <figure>
+            <canvas data-variant={v.id}></canvas>
+            <figcaption>
+              <span class="vname">{v.name}</span>
+              <span class="vnote">{v.note}</span>
+              <span class="vstats" data-stats={v.id}>starting…</span>
+            </figcaption>
+          </figure>
+        ))}
+
+        <footer>
+          <p class="label">notes</p>
+          <p class="note">
+            The field is diced into 16³ chunks; a cursor deformation re-evaluates and re-meshes only
+            the chunks it touches, and a scroll dirties everything but drains over several frames on
+            a shared budget. Normals come from the analytic field gradient rather than face normals,
+            so chunk seams stay invisible. Nothing on the grid is impassable — slope is priced, not
+            forbidden — so a route always exists and the line never blinks out mid-replan.
+          </p>
+        </footer>
+      </main>
+
+      <aside class="panel">
+        <p class="label">controls</p>
+        {controls.map((c) => (
+          <div class="ctl">
+            <label for={`ctl-${c.id}`}>
+              {c.label}
+              <output id={`val-${c.id}`}>{c.value}</output>
+            </label>
+            <input
+              type="range"
+              id={`ctl-${c.id}`}
+              min={c.min}
+              max={c.max}
+              step={c.step}
+              value={c.value}
+            />
+            <span class="hint">{c.hint}</span>
+          </div>
+        ))}
+      </aside>
+    </div>
+
+    <script>
+      import '../../terrain/lab';
+    </script>
+
+    <style>
+      /* The lab is an instrument, so it runs denser than the site proper. */
+      body {
+        font-size: 13px;
+        line-height: 1.7;
+      }
+
+      .wrap {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 236px;
+        gap: 64px;
+        max-width: 1240px;
+        margin: 0 auto;
+        padding: 72px 40px 160px;
+        align-items: start;
+      }
+
+      h1 {
+        font-family: var(--serif);
+        font-optical-sizing: auto;
+        font-size: clamp(30px, 4.4vw, 46px);
+        font-weight: 400;
+        letter-spacing: -0.022em;
+        line-height: 1.06;
+        margin: 0 0 24px;
+      }
+
+      .lede {
+        font-family: var(--serif);
+        font-optical-sizing: auto;
+        font-size: 18px;
+        line-height: 1.62;
+        max-width: 62ch;
+        margin: 0 0 12px;
+        color: rgba(236, 232, 225, 0.86);
+      }
+
+      figure {
+        margin: 88px 0 0;
+      }
+
+      canvas {
+        display: block;
+        width: 100%;
+        height: clamp(340px, 56vh, 560px);
+        background: var(--ink);
+      }
+
+      figcaption {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-top: 18px;
+        max-width: 78ch;
+      }
+
+      .vname {
+        color: var(--paper);
+        letter-spacing: 0.02em;
+      }
+
+      .vnote {
+        color: var(--paper-50);
+        line-height: 1.65;
+      }
+
+      .vstats {
+        color: var(--accent);
+        font-variant-numeric: tabular-nums;
+        font-size: 12px;
+      }
+
+      footer {
+        margin-top: 112px;
+      }
+
+      .note {
+        color: var(--paper-50);
+        max-width: 74ch;
+        margin: 0;
+        line-height: 1.75;
+      }
+
+      /* controls */
+
+      .panel {
+        position: sticky;
+        top: 40px;
+      }
+
+      .ctl {
+        margin-bottom: 30px;
+      }
+
+      .ctl label {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 12px;
+        font-size: 12px;
+        letter-spacing: 0.02em;
+      }
+
+      .ctl output {
+        color: var(--accent);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .hint {
+        display: block;
+        margin-top: 6px;
+        font-size: 11px;
+        line-height: 1.5;
+        color: rgba(236, 232, 225, 0.34);
+      }
+
+      input[type='range'] {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 100%;
+        height: 18px;
+        margin: 10px 0 0;
+        background: transparent;
+        cursor: ew-resize;
+      }
+
+      input[type='range']::-webkit-slider-runnable-track {
+        height: 1px;
+        background: var(--hair);
+      }
+
+      input[type='range']::-moz-range-track {
+        height: 1px;
+        background: var(--hair);
+      }
+
+      input[type='range']::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 9px;
+        height: 9px;
+        margin-top: -4px;
+        border-radius: 50%;
+        background: var(--accent);
+      }
+
+      input[type='range']::-moz-range-thumb {
+        width: 9px;
+        height: 9px;
+        border: 0;
+        border-radius: 50%;
+        background: var(--accent);
+      }
+
+      input[type='range']:focus-visible {
+        outline: 1px solid var(--accent);
+        outline-offset: 4px;
+      }
+
+      @media (max-width: 900px) {
+        .wrap {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 40px;
+          padding: 48px 24px 100px;
+        }
+
+        .panel {
+          position: static;
+          order: -1;
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+          gap: 0 28px;
+        }
+
+        .panel .label {
+          grid-column: 1 / -1;
+        }
+
+        figure {
+          margin-top: 56px;
+        }
+      }
+    </style>
+  </body>
+</html>

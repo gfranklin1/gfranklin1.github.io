@@ -1,0 +1,69 @@
+/*
+ * The whole visual system: four colours, two families, one link treatment.
+ * Shared by every page so the palette cannot drift between them.
+ */
+
+:root {
+  --ink: #0e0e0e;
+  --paper: #ece8e1;
+  --accent: #d9662f;
+
+  /* The only permitted tints: the paper colour at lower opacity over ink. */
+  --paper-80: rgba(236, 232, 225, 0.82);
+  --paper-50: rgba(236, 232, 225, 0.5);
+  --paper-35: rgba(236, 232, 225, 0.35);
+  --hair: rgba(236, 232, 225, 0.14);
+
+  --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --serif: 'Newsreader', ui-serif, Georgia, 'Times New Roman', serif;
+
+  --measure: 62ch;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--mono);
+  font-size: 17px;
+  line-height: 1.75;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Links change colour. They do not grow underlines, lift, or animate. */
+a {
+  color: var(--accent);
+  text-decoration: none;
+  transition: color 120ms linear;
+}
+
+a:hover,
+a:focus-visible {
+  color: var(--paper);
+}
+
+a:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  a {
+    transition: none;
+  }
+}
+
+/* Sections are separated by whitespace and one of these, never by a rule. */
+.label {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--paper-50);
+  margin: 0 0 20px;
+}
