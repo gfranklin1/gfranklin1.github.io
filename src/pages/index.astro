@@ -17,6 +17,13 @@ import '../styles/fonts.css';
 // rejoin explicitly. Works for a project page and for base '/' alike.
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
+const title = 'Garrett Franklin';
+const description =
+  'Garrett Franklin. Graphics, games, and the systems underneath them. ' +
+  'Computer science and math at the University of Maryland.';
+// Absolute, as crawlers require. public/og.png is a 1200x630 capture of the hero.
+const ogImage = new URL('og.png', Astro.site).href;
+
 const intro = {
   name: 'Garrett Franklin',
   does: 'I build graphics, games, and the systems underneath them. Computer science and math at the University of Maryland, class of 2027.',
@@ -87,11 +94,13 @@ const contact = [
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Garrett Franklin</title>
-    <meta
-      name="description"
-      content="Garrett Franklin — graphics, games, and low-level systems. CS and math at Maryland."
-    />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={ogImage} />
+    <meta name="twitter:card" content="summary_large_image" />
     <link
       rel="preload"
       href={`${base}/fonts/newsreader-var-opsz-400-latin.woff2`}
