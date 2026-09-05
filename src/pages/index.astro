@@ -288,8 +288,15 @@ const contact = [
        * than below the empty box around it. Negative because the hero's height
        * sets the canvas aspect, and shortening it would resize the slab.
        */
-      .intro + section {
-        margin-top: -68px;
+      /*
+       * Desktop only: below the breakpoint the canvas is a block in normal
+       * flow, and this would drag the work block up underneath it, hiding the
+       * label and the first row.
+       */
+      @media (min-width: 901px) {
+        .intro + section {
+          margin-top: -68px;
+        }
       }
 
       .work article + article {
@@ -411,15 +418,28 @@ const contact = [
           padding-top: 64px;
         }
 
+        /*
+         * Shorter than the desktop hero. A tall narrow canvas has a low
+         * aspect, which makes the camera dolly back to fit and strands the
+         * slab in empty ground above and below; wider than tall keeps it
+         * filling the frame.
+         */
         .terrain {
           position: static;
-          height: 48vh;
-          min-height: 290px;
-          margin: 40px -24px 0;
+          height: 34vh;
+          min-height: 220px;
+          max-height: 300px;
+          margin: 36px -24px 0;
         }
 
         .lede {
           max-width: none;
+        }
+
+        /* One step down so a work row fits the viewport with margin. */
+        .history ul,
+        .contact ul {
+          font-size: 13px;
         }
 
         /* Three columns will not fit; let each row wrap and drop the measures. */
