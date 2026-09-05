@@ -38,6 +38,9 @@ function init(): void {
     return;
   }
 
+  // The hero crops on the right and bottom at full size; back off so the slab
+  // sits inside the viewport with room to spare.
+  view.setFramingScale(0.85);
   fitToCanvas(view, canvas);
   new ResizeObserver(() => fitToCanvas(view, canvas)).observe(canvas);
 

@@ -3,6 +3,10 @@ import '../../styles/tokens.css';
 import '../../styles/fonts.css';
 import { VARIANTS } from '../../terrain/variants';
 
+// BASE_URL carries no trailing slash when `base` has none, so strip any and
+// rejoin explicitly. Works for a project page and for base '/' alike.
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+
 const controls = [
   { id: 'noiseScale', label: 'noise scale', min: 10, max: 80, step: 1, value: 34,
     hint: 'world units per feature' },
@@ -23,14 +27,14 @@ const controls = [
     <title>terrain + route planner — lab</title>
     <link
       rel="preload"
-      href="/fonts/newsreader-var-opsz-400-latin.woff2"
+      href={`${base}/fonts/newsreader-var-opsz-400-latin.woff2`}
       as="font"
       type="font/woff2"
       crossorigin
     />
     <link
       rel="preload"
-      href="/fonts/ibm-plex-mono-400-latin.woff2"
+      href={`${base}/fonts/ibm-plex-mono-400-latin.woff2`}
       as="font"
       type="font/woff2"
       crossorigin

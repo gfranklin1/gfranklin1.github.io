@@ -72,9 +72,6 @@ export class TerrainField {
   /** World y of the walkable top surface, (nx+1) * (nz+1). */
   heights = new Float32Array(0);
 
-  /** Bumped whenever any sample changes, so callers can tell state apart. */
-  generation = 0;
-
   cx = 0;
   cy = 0;
   cz = 0;
@@ -250,7 +247,6 @@ export class TerrainField {
     }
 
     this.updateHeights(a0, c0, a1, c1);
-    this.generation++;
   }
 
   evaluateAll(): void {

@@ -10,33 +10,39 @@ import '../styles/fonts.css';
  * Project links and titles are real. Capital One carries none by design: that
  * work is not Garrett's to publish.
  *
- * `contact` is real and should not be treated as placeholder. /resume.pdf
- * resolves to public/resume.pdf, which is not in the repo yet.
+ * `contact` is real and should not be treated as placeholder.
  */
+
+// BASE_URL carries no trailing slash when `base` has none, so strip any and
+// rejoin explicitly. Works for a project page and for base '/' alike.
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
 const intro = {
   name: 'Garrett Franklin',
-  does: 'I build graphics, games, and the systems underneath them — computer science and math at Maryland, graduating May 2027.',
-  now: 'This fall I am at Zipline, working on Maps & Routing.',
+  does: 'I build graphics, games, and the systems underneath them. Computer science and math at the University of Maryland, class of 2027.',
+  now: "This fall I'm at Zipline, working on Maps & Routing.",
   terrain: 'The landscape here is a toy version of that problem: the ground is generated as you watch, and the line across it is replanned every time the ground moves.',
 };
 
 const projects = [
   {
     title: 'Capital One ML pipeline',
+    context: 'internship',
     summary: 'Gradient-boosted models that pick the right AWS Glue configuration for a job.',
-    body: 'Glue jobs were provisioned by hand and almost always over-provisioned. I trained XGBoost and LightGBM models on historical run telemetry to predict the cheapest configuration that still met the runtime target, and shipped them behind Lambda with feature flags so a bad model could be turned off without a deploy. The hard part was not the model — it was drift: job shapes changed weekly, so the pipeline needed drift detection and automated retraining to stay honest. Projected annual savings came in above $360K.',
+    body: 'Glue jobs were provisioned by hand and almost always over-provisioned. I trained XGBoost and LightGBM models on historical run telemetry to predict the cheapest configuration that still met the runtime target, and shipped them behind Lambda with feature flags so a bad model could be turned off without a deploy. The hard part was not the model — it was drift: job shapes changed weekly, so the pipeline needed drift detection and automated retraining to keep up. Projected annual savings came in above $360K.',
     // Nothing to link: the work is not Garrett's to publish.
     links: [],
   },
   {
     title: 'AliasGraph',
+    context: 'personal',
     summary: 'OSINT tool that clusters one person’s accounts across the web.',
-    body: 'AliasGraph checks a username against more than 1,400 sites concurrently and then tries to work out which of the hits are actually the same person. The scraping was mostly a rate-limiting and backpressure problem. The interesting half was the clustering: turning weak, noisy signals into a graph and partitioning it without collapsing two different people into one identity.',
+    body: 'AliasGraph checks a username against more than 1,400 sites concurrently and then tries to work out which of the hits are actually the same person. The scraping was mostly a rate-limiting and backpressure problem. The harder part was the clustering: turning weak, noisy signals into a graph and partitioning it without collapsing two different people into one identity.',
     links: [['source', 'https://github.com/gfranklin1/osint-username-enumerator']],
   },
   {
     title: 'Depth & Doubloons',
+    context: 'game jam',
     summary: 'Co-op diving game in Unity: one player sails the ship, the other goes over the side on a tether.',
     body: "Authority ended up split rather than uniform: the ship simulates on the server and takes steering as RPCs, while each diver's state replicates from the client that owns it. The seabed is generated from a seed the server shares, so every client rebuilds the same chunks as the ship moves.",
     links: [
@@ -46,16 +52,24 @@ const projects = [
   },
   {
     title: 'Tron XR',
+    context: 'xr club',
     summary: 'Mixed-reality combat for Quest 3, where the enemies come out of your actual walls.',
     body: "The room scan isn't a backdrop: it's turned into destructible segments, so a thrown disk breaks the wall it hits and enemies come in through the hole. There's no navmesh, since every scanned room is different, so each bug re-snaps to the surface under it every tick and steers along it, which is what lets it crawl up a wall and hang off the ceiling. The wall-avoidance raycast did more than I planned: a destroyed segment leaves no collider, so a breach reads as open space and the bugs funnel through the holes you made without any pathfinding that knows holes exist.",
     links: [['source', 'https://github.com/andydiep04/tron_xr']],
   },
   {
     title: 'LastMile',
+    context: 'personal',
     summary: 'Delivery dispatch and a live map: Go services, a Neo4j driver graph, a React dashboard.',
     body: "Each Driver node carries the end of its route, not just where the driver is now, so one Cypher query ranks every candidate by what appending an order would actually cost instead of the coordinator pulling routes into application code to sort them. Nothing moves in the backend, though: positions are written once, so the realtime service animates the markers in memory and never writes back, and a restart re-anchors them to the cached truth.",
     links: [['source', 'https://github.com/bengal-tech365/LastMile']],
   },
+];
+
+const history = [
+  ['zipline', 'maps & routing', 'fall 2026'],
+  ['capital one', 'ml infrastructure', 'summer 2026'],
+  ['whiting-turner', 'data analytics', 'summer 2025'],
 ];
 
 const elsewhere =
@@ -65,7 +79,7 @@ const contact = [
   ['email', 'garrettfranklin.careers@gmail.com', 'mailto:garrettfranklin.careers@gmail.com'],
   ['github', 'github.com/gfranklin1', 'https://github.com/gfranklin1'],
   ['linkedin', 'linkedin.com/in/garrettfranklin0', 'https://www.linkedin.com/in/garrettfranklin0/'],
-  ['resume', 'resume.pdf', '/resume.pdf'],
+  ['resume', 'resume.pdf', `${base}/resume.pdf`],
 ];
 ---
 
@@ -80,14 +94,14 @@ const contact = [
     />
     <link
       rel="preload"
-      href="/fonts/newsreader-var-opsz-400-latin.woff2"
+      href={`${base}/fonts/newsreader-var-opsz-400-latin.woff2`}
       as="font"
       type="font/woff2"
       crossorigin
     />
     <link
       rel="preload"
-      href="/fonts/ibm-plex-mono-400-latin.woff2"
+      href={`${base}/fonts/ibm-plex-mono-400-latin.woff2`}
       as="font"
       type="font/woff2"
       crossorigin
@@ -109,6 +123,19 @@ const contact = [
         </div>
       </section>
 
+      <section class="history">
+        <p class="label">work</p>
+        <ul>
+          {history.map(([org, role, when]) => (
+            <li>
+              <span class="org">{org}</span>
+              <span class="role">{role}</span>
+              <span class="when">{when}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
       <section class="work">
         <p class="label">selected work</p>
         {projects.map((p) => (
@@ -116,16 +143,19 @@ const contact = [
             <h2>{p.title}</h2>
             <p class="summary">{p.summary}</p>
             <p class="body">{p.body}</p>
-            {p.links.length > 0 && (
-              <p class="links">
-                {p.links.map(([name, href], i) => (
-                  <>
-                    {i > 0 && <span class="sep"> / </span>}
-                    <a href={href}>{name}</a>
-                  </>
-                ))}
-              </p>
-            )}
+            <p class="meta">
+              <span class="ctx">{p.context}</span>
+              {p.links.length > 0 && (
+                <span class="links">
+                  {p.links.map(([name, href], i) => (
+                    <>
+                      {i > 0 && <span class="sep"> / </span>}
+                      <a href={href}>{name}</a>
+                    </>
+                  ))}
+                </span>
+              )}
+            </p>
           </article>
         ))}
       </section>
@@ -160,7 +190,10 @@ const contact = [
         overflow-x: clip;
       }
 
+      /* First-column measure shared by the work block and the project meta
+         rows, in px so it does not shift with either row's font size. */
       main {
+        --meta-col: 153px;
         max-width: 1180px;
         margin: 0 auto;
         padding: 0 40px 200px;
@@ -184,9 +217,13 @@ const contact = [
         position: absolute;
         top: 0;
         bottom: 0;
-        left: 26%;
-        /* Reach exactly the viewport's right edge, whatever the column width:
-           50% of the containing block back out to half the viewport. */
+        left: 50%;
+        /*
+         * Stop exactly at the viewport's right edge — no overhang. The slab is
+         * scaled down in the camera instead (see setFramingScale in home.ts),
+         * which keeps its right and bottom edges inside the frame rather than
+         * running them off it. Bleeding off the top is fine and intended.
+         */
         right: calc(50% - 50vw);
         pointer-events: auto;
       }
@@ -222,7 +259,7 @@ const contact = [
         letter-spacing: -0.003em;
         color: var(--paper-80);
         margin: 0 0 18px;
-        max-width: 46ch;
+        max-width: 40ch;
       }
 
       .terrain-note {
@@ -235,7 +272,24 @@ const contact = [
         margin-top: 168px;
       }
 
+      /*
+       * The hero is a full screen tall but the slab stops well short of its
+       * bottom edge, leaving dead canvas underneath. Pull the next section up
+       * into that space so the work block starts just below the terrain rather
+       * than below the empty box around it. Negative because the hero's height
+       * sets the canvas aspect, and shortening it would resize the slab.
+       */
+      .intro + section {
+        margin-top: -68px;
+      }
+
       .work article + article {
+        margin-top: 104px;
+      }
+
+      /* The work block reads as part of the same run as the projects, so it
+         gets the gap between projects rather than the gap between sections. */
+      .history + .work {
         margin-top: 104px;
       }
 
@@ -269,18 +323,15 @@ const contact = [
         color: var(--paper-80);
       }
 
-      .links {
-        margin: 22px 0 0;
-        font-size: 13px;
-        letter-spacing: 0.02em;
-      }
-
       .sep {
         color: var(--paper-35);
       }
 
-      /* contact ---------------------------------------------------------- */
+      /* work history ------------------------------------------------------ */
 
+      /* Three aligned columns, same construction as the contact block: a fixed
+         measure per column so the rows line up without a table or a grid. */
+      .history ul,
       .contact ul {
         list-style: none;
         margin: 0;
@@ -288,11 +339,45 @@ const contact = [
         font-size: 15px;
       }
 
+      .history li,
       .contact li {
         display: flex;
         gap: 20px;
         margin-bottom: 8px;
       }
+
+      .history .org {
+        min-width: var(--meta-col);
+      }
+
+      .history .role {
+        min-width: 22ch;
+        color: var(--paper-80);
+      }
+
+      .history .when {
+        color: var(--paper-35);
+      }
+
+      /*
+       * One dim mono row closing each project: what it was, then where to find
+       * it. The context column is the same measure as the work block's first
+       * column, so the links line up with the roles above them.
+       */
+      .meta {
+        display: flex;
+        gap: 20px;
+        font-family: var(--mono);
+        font-size: 13px;
+        color: var(--paper-35);
+        margin: 22px 0 0;
+      }
+
+      .meta .ctx {
+        min-width: var(--meta-col);
+      }
+
+      /* contact ---------------------------------------------------------- */
 
       .key {
         color: var(--paper-35);
@@ -326,6 +411,18 @@ const contact = [
 
         .lede {
           max-width: none;
+        }
+
+        /* Three columns will not fit; let each row wrap and drop the measures. */
+        .history li {
+          flex-wrap: wrap;
+          gap: 4px 14px;
+        }
+
+        .history .org,
+        .history .role,
+        .meta .ctx {
+          min-width: 0;
         }
 
         section + section {

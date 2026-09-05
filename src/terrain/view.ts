@@ -60,6 +60,14 @@ const OFFSET_DEADBAND = 0.3; // world units
 const BRUSH_MOVE_DEADBAND = 0.5; // world units
 const BRUSH_AMOUNT_DEADBAND = 0.015; // fraction of full strength
 
+/**
+ * Idle creep of the noise offset, world units per second. Slow enough that a
+ * still frame looks static and only a couple of seconds of watching gives it
+ * away. Suppressed entirely under reduced motion, since stepFieldState returns
+ * before the drift is applied.
+ */
+const IDLE_DRIFT_PER_SEC = 0.8;
+
 /** Peak height the cursor mound reaches once it has fully faded in. */
 const BRUSH_STRENGTH = 16;
 
@@ -105,8 +113,6 @@ export class TerrainView {
   private terrainGroup = new THREE.Group();
   private material: THREE.MeshLambertMaterial;
   private meshes: THREE.Mesh[] = [];
-  /** Field generation each chunk's uploaded geometry was extracted from. */
-  private chunkGen: Int32Array = new Int32Array(0);
 
   private routeLine: Line2;
   private routeMaterial: LineMaterial;
@@ -124,6 +130,9 @@ export class TerrainView {
   // nothing outside stepFieldState is allowed to touch the field itself.
   private offsetTarget = 0;
   private dampedOffset = 0;
+  /** Scroll and idle creep are summed into offsetTarget once per frame. */
+  private scrollOffset = 0;
+  private idleOffset = 0;
   private brushTargetX = 0;
   private brushTargetZ = 0;
   private brushTargetAmount = 0;
@@ -152,6 +161,9 @@ export class TerrainView {
 
   private width = 1;
   private height = 1;
+  private dpr = 1;
+  /** Below 1 shrinks the subject in frame without changing the canvas box. */
+  private framingScale = 1;
   private disposed = false;
 
   /** Camera rig as authored, before any aspect-fit dolly. */
@@ -227,11 +239,6 @@ export class TerrainView {
     // First build is synchronous so the first frame on screen is complete.
     this.rebuildAll();
     this.replan();
-
-    if (import.meta.env.DEV) {
-      const w = window as unknown as { __terrainViews?: TerrainView[] };
-      (w.__terrainViews ??= []).push(this);
-    }
   }
 
   // ---------------------------------------------------------------- terrain
@@ -244,7 +251,6 @@ export class TerrainView {
     this.meshes = [];
 
     const f = this.field;
-    this.chunkGen = new Int32Array(f.chunkCount).fill(-1);
     for (let c = 0; c < f.chunkCount; c++) {
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(3 * 3), 3));
@@ -296,7 +302,6 @@ export class TerrainView {
     pos.needsUpdate = true;
     nrm.needsUpdate = true;
     geo.setDrawRange(0, res.vertexCount);
-    this.chunkGen[chunkIndex] = this.field.generation;
   }
 
   private countTriangles(): void {
@@ -602,7 +607,7 @@ export class TerrainView {
    */
   setScroll(t: number): void {
     if (this.reducedMotion) return;
-    this.offsetTarget = t * WORLD_SIZE * 1.6;
+    this.scrollOffset = t * WORLD_SIZE * 1.6;
   }
 
   /**
@@ -667,6 +672,13 @@ export class TerrainView {
     this.lastTickMs = nowMs;
     if (this.reducedMotion) return;
 
+    // The scene should read as live before anyone scrolls, so the noise offset
+    // creeps on its own. It joins the scroll contribution to form one target
+    // and goes through the same damping, so there is still exactly one field
+    // state and no second animation path to keep in sync.
+    this.idleOffset += (IDLE_DRIFT_PER_SEC * dt) / 1000;
+    this.offsetTarget = this.scrollOffset + this.idleOffset;
+
     const k = 1 - Math.exp(-dt / DAMP_TAU_MS);
     this.dampedOffset += (this.offsetTarget - this.dampedOffset) * k;
     this.dampedBrushX += (this.brushTargetX - this.dampedBrushX) * k;
@@ -710,9 +722,19 @@ export class TerrainView {
     this.needsPlan = true;
   }
 
+  /**
+   * Shrink or grow the subject in frame. 0.85 renders the slab 15% smaller,
+   * leaving margin on every side without touching the canvas geometry.
+   */
+  setFramingScale(scale: number): void {
+    this.framingScale = Math.max(0.2, scale);
+    this.resize(this.width, this.height, this.dpr);
+  }
+
   resize(width: number, height: number, dpr: number): void {
     this.width = Math.max(1, width);
     this.height = Math.max(1, height);
+    this.dpr = dpr;
     this.renderer.setPixelRatio(dpr);
     this.renderer.setSize(this.width, this.height, false);
     const aspect = this.width / this.height;
@@ -720,7 +742,10 @@ export class TerrainView {
 
     // Dolly straight back along the view axis so the framing is preserved
     // rather than re-aimed; the composition stays the one that was chosen.
-    const dolly = aspect < FRAMED_ASPECT ? Math.min(2, FRAMED_ASPECT / aspect) : 1;
+    // framingScale below 1 pulls back further still, which is how a caller asks
+    // for a smaller subject without narrowing the canvas to get it.
+    const fit = aspect < FRAMED_ASPECT ? Math.min(2, FRAMED_ASPECT / aspect) : 1;
+    const dolly = fit / this.framingScale;
     this.camera.position
       .copy(this.baseEye)
       .sub(this.lookAt)
@@ -752,56 +777,6 @@ export class TerrainView {
       this.needsPlan = false;
     }
     this.renderer.render(this.scene, this.camera);
-  }
-
-  /**
-   * How many distinct field states the currently displayed chunks were
-   * extracted from. Anything above 1 means the surface on screen is a mix of
-   * two different worlds.
-   */
-  /** Canvas-space positions of both endpoint dots, for tests. */
-  debugEndpointScreen(): { start: { x: number; y: number }; goal: { x: number; y: number } } {
-    const s = this.projectToScreen(this.startDot.position, this.projScratch);
-    const start = { x: s.x, y: s.y };
-    const g = this.projectToScreen(this.goalDot.position, this.projScratch);
-    return { start, goal: { x: g.x, y: g.y } };
-  }
-
-  /** Current committed brush strength, for tests. */
-  debugBrushStrength(): number {
-    return this.field.brush.active ? this.field.brush.strength : 0;
-  }
-
-  debugGenerationSpread(): { distinct: number; fieldGeneration: number } {
-    const seen = new Set<number>();
-    for (let c = 0; c < this.field.chunkCount; c++) seen.add(this.chunkGen[c]!);
-    return { distinct: seen.size, fieldGeneration: this.field.generation };
-  }
-
-  /**
-   * Chunks whose displayed geometry differs from what the field would produce
-   * right now. This is the invariant itself, measured directly rather than via
-   * bookkeeping: re-extract every chunk and compare against what is on screen.
-   * Debug only - it re-meshes the whole grid.
-   */
-  debugStaleChunks(): number {
-    let stale = 0;
-    for (let c = 0; c < this.field.chunkCount; c++) {
-      const res = this.mesher.meshChunk(c);
-      const geo = this.meshes[c]!.geometry;
-      if (geo.drawRange.count !== res.vertexCount) {
-        stale++;
-        continue;
-      }
-      const pos = (geo.getAttribute('position') as THREE.BufferAttribute).array as Float32Array;
-      for (let i = 0; i < res.vertexCount * 3; i++) {
-        if (Math.abs(pos[i]! - res.positions[i]!) > 1e-4) {
-          stale++;
-          break;
-        }
-      }
-    }
-    return stale;
   }
 
   dispose(): void {

@@ -58,12 +58,14 @@ a:focus-visible {
   }
 }
 
-/* Sections are separated by whitespace and one of these, never by a rule. */
+/*
+ * Sections are separated by whitespace and one of these, never by a rule.
+ * Set as written: lowercase, normal tracking. Uppercase and letter-spacing
+ * read as a template tic rather than as a considered choice.
+ */
 .label {
   font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  font-size: 13px;
   color: var(--paper-50);
   margin: 0 0 20px;
 }
