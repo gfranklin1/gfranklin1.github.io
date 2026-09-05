@@ -83,6 +83,13 @@ export const VARIANTS: readonly Variant[] = [
   },
 ];
 
-/** Fixed endpoints, in normalised terrain coordinates. Same for every variant. */
-export const ROUTE_START = { u: 0.08, v: 0.14 } as const;
-export const ROUTE_GOAL = { u: 0.93, v: 0.87 } as const;
+/**
+ * Fixed endpoints, in normalised terrain coordinates. Same for every variant.
+ *
+ * The goal sits at the far corner, which the camera puts at the top of the
+ * frame. On touch the goal is the endpoint a ground tap moves by default, and
+ * reaching over the near dot to drag the far one is the worse gesture of the
+ * two - so the far corner is the one that should be the goal.
+ */
+export const ROUTE_GOAL = { u: 0.08, v: 0.14 } as const;
+export const ROUTE_START = { u: 0.93, v: 0.87 } as const;
