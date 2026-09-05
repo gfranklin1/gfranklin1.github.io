@@ -130,6 +130,7 @@ const contact = [
         <div class="terrain" aria-hidden="true">
           <canvas id="terrain"></canvas>
         </div>
+        <p class="touch-hint">tap the ground to move the goal</p>
       </section>
 
       <section class="history">
@@ -273,6 +274,24 @@ const contact = [
 
       .terrain-note {
         color: var(--paper-50);
+      }
+
+      /*
+       * Only worth saying where tapping is the interaction. A mouse gets the
+       * cursor change over a dot instead, which needs no caption.
+       */
+      .touch-hint {
+        display: none;
+        font-family: var(--mono);
+        font-size: 13px;
+        color: var(--paper-35);
+        margin: 14px 0 0;
+      }
+
+      @media (pointer: coarse) {
+        .touch-hint {
+          display: block;
+        }
       }
 
       /* sections --------------------------------------------------------- */

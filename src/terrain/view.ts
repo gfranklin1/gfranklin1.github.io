@@ -91,8 +91,21 @@ function smoothstep(edge0: number, edge1: number, x: number): number {
   return t * t * (3 - 2 * t);
 }
 
-/** How much larger a tap-armed dot draws. The only selection feedback there is. */
+/** How much larger an armed start dot draws. The only feedback there is. */
 const SELECTED_DOT_SCALE = 1.7;
+
+/**
+ * Tap radius on coarse pointers: a 44px target, the usual floor for a finger,
+ * regardless of how small the dot is drawn.
+ */
+const TOUCH_HIT_RADIUS_PX = 22;
+
+/**
+ * How long the route takes to travel from its old shape to a new one. Short
+ * enough to feel immediate, long enough that a replan reads as the line moving
+ * rather than as one line being swapped for another.
+ */
+const ROUTE_EASE_MS = 150;
 
 /** Keep dragged endpoints this far inside the slab, as a fraction of it. */
 const ENDPOINT_MARGIN = 0.05;
@@ -146,7 +159,7 @@ export class TerrainView {
   private readonly startUV: { u: number; v: number } = { u: ROUTE_START.u, v: ROUTE_START.v };
   private readonly goalUV: { u: number; v: number } = { u: ROUTE_GOAL.u, v: ROUTE_GOAL.v };
   private dragging: 'start' | 'goal' | null = null;
-  private selected: 'start' | 'goal' | null = null;
+  private nextTap: 'start' | 'goal' = 'goal';
   private readonly projScratch = new THREE.Vector3();
   private pointerPlane: THREE.Plane;
   private raycaster = new THREE.Raycaster();
@@ -158,6 +171,13 @@ export class TerrainView {
   private smoothA: number[] = [];
   private smoothB: number[] = [];
   private resampled = new Float32Array(ROUTE_POINTS * 3);
+  /** Endpoints of the route ease: where the line was, and where it is heading. */
+  private routeFrom = new Float32Array(ROUTE_POINTS * 3);
+  private routeTo = new Float32Array(ROUTE_POINTS * 3);
+  /** Timestamp the current ease began, or -1 when the line is settled. */
+  private routeEaseStart = -1;
+  /** False until the first plan, which has nothing to ease from. */
+  private hasRoute = false;
 
   private width = 1;
   private height = 1;
@@ -377,9 +397,9 @@ export class TerrainView {
     dst.push(src[src.length - 3]!, 0, src[src.length - 1]!);
   }
 
-  /** Even arc-length resample onto the fixed-size output buffer. */
+  /** Even arc-length resample of the smoothed path into the ease target. */
   private resample(src: number[]): void {
-    const out = this.resampled;
+    const out = this.routeTo;
     const count = src.length / 3;
 
     let total = 0;
@@ -459,9 +479,9 @@ export class TerrainView {
   }
 
   /** Which endpoint dot, if any, is under a canvas-space point. */
-  dotAt(px: number, py: number): 'start' | 'goal' | null {
+  dotAt(px: number, py: number, radiusPx = DOT_HIT_RADIUS_PX): 'start' | 'goal' | null {
     const near = this.nearestDot(px, py);
-    return near.dist <= DOT_HIT_RADIUS_PX ? near.which : null;
+    return near.dist <= radiusPx ? near.which : null;
   }
 
   get isDraggingDot(): boolean {
@@ -505,36 +525,34 @@ export class TerrainView {
   }
 
   /** Which endpoint is armed for placing, if any. */
-  get selectedDot(): 'start' | 'goal' | null {
-    return this.selected;
+  /** Which endpoint the next tap will place. Goal unless the start was tapped. */
+  get tapTarget(): 'start' | 'goal' {
+    return this.nextTap;
   }
 
-  private setSelected(which: 'start' | 'goal' | null): void {
-    this.selected = which;
-    // The only feedback available: no glow, no second colour, so the armed dot
-    // simply reads larger.
+  private setTapTarget(which: 'start' | 'goal'): void {
+    this.nextTap = which;
+    // No glow and no second colour to work with, so an armed start simply
+    // reads larger. The goal is the default and never needs the affordance.
     this.startDot.scale.setScalar(which === 'start' ? SELECTED_DOT_SCALE : 1);
-    this.goalDot.scale.setScalar(which === 'goal' ? SELECTED_DOT_SCALE : 1);
   }
 
   /**
-   * Touch interaction: tap a dot to arm it, tap the ground to place it there.
-   * Tapping an armed dot again disarms it. Coarse pointers get this instead of
-   * dragging, which would have to fight the page for the gesture.
+   * Touch interaction. A tap on the ground places an endpoint immediately -
+   * the goal by default, so the common case costs one tap and no arming step.
+   * Tapping the start dot redirects the next tap to the start instead, and
+   * that redirect lasts exactly until the tap that spends it.
+   *
+   * Coarse pointers get this instead of dragging, which would have to claim
+   * the gesture on pointerdown and stop the page scrolling.
    */
-  tap(px: number, py: number): 'armed' | 'disarmed' | 'placed' | 'none' {
-    const hit = this.dotAt(px, py);
-    if (hit) {
-      if (this.selected === hit) {
-        this.setSelected(null);
-        return 'disarmed';
-      }
-      this.setSelected(hit);
-      return 'armed';
+  tap(px: number, py: number): 'retargeted' | 'placed' {
+    if (this.nextTap !== 'start' && this.dotAt(px, py, TOUCH_HIT_RADIUS_PX) === 'start') {
+      this.setTapTarget('start');
+      return 'retargeted';
     }
-    if (!this.selected) return 'none';
-    this.moveEndpoint(this.selected, px, py);
-    this.setSelected(null);
+    this.moveEndpoint(this.nextTap, px, py);
+    this.setTapTarget('goal');
     return 'placed';
   }
 
@@ -567,7 +585,36 @@ export class TerrainView {
       src = dst;
     }
 
+    // resample() writes the new shape into routeTo, never straight to the
+    // displayed line, so the ease is the only thing that ever moves it.
     this.resample(src);
+
+    // A drag is direct manipulation: the line has to track the cursor exactly,
+    // so it is the one case that skips the ease. Same for the very first plan,
+    // which has nothing to travel from.
+    if (this.dragging !== null || !this.hasRoute) {
+      this.resampled.set(this.routeTo);
+      this.routeEaseStart = -1;
+      this.hasRoute = true;
+      this.uploadRoute();
+      return;
+    }
+
+    // Start from wherever the line is right now, which mid-ease is a partly
+    // travelled shape. That keeps a replan during an ease continuous instead
+    // of snapping back to the shape the ease began from.
+    this.routeFrom.set(this.resampled);
+    this.routeEaseStart = performance.now();
+  }
+
+  /** Advance the route ease. Called once per frame, after any replan. */
+  private advanceRouteEase(nowMs: number): void {
+    if (this.routeEaseStart < 0) return;
+    const t = Math.min(1, (nowMs - this.routeEaseStart) / ROUTE_EASE_MS);
+    const k = t * t * (3 - 2 * t);
+    const from = this.routeFrom, to = this.routeTo, out = this.resampled;
+    for (let i = 0; i < out.length; i++) out[i] = from[i]! + (to[i]! - from[i]!) * k;
+    if (t >= 1) this.routeEaseStart = -1;
     this.uploadRoute();
   }
 
@@ -776,6 +823,7 @@ export class TerrainView {
       this.replan();
       this.needsPlan = false;
     }
+    this.advanceRouteEase(nowMs);
     this.renderer.render(this.scene, this.camera);
   }
 

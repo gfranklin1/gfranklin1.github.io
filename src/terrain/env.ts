@@ -41,7 +41,7 @@ interface Pointable {
   beginDotDrag(which: 'start' | 'goal'): void;
   dragDotTo(px: number, py: number): void;
   endDotDrag(): void;
-  tap(px: number, py: number): 'armed' | 'disarmed' | 'placed' | 'none';
+  tap(px: number, py: number): 'retargeted' | 'placed';
   readonly isDraggingDot: boolean;
 }
 
@@ -50,7 +50,8 @@ const TAP_SLOP_PX = 12;
 const TAP_MAX_MS = 600;
 
 /**
- * Endpoint placement by tapping, for touch.
+ * Endpoint placement by tapping, for touch. One tap on the ground moves the
+ * goal; tapping the start dot redirects the following tap to the start.
  *
  * Dragging is deliberately not offered here: the canvas would have to claim
  * the gesture on pointerdown, before it knows whether the finger started on a
