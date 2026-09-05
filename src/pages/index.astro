@@ -285,7 +285,7 @@ const contact = [
         font-family: var(--mono);
         font-size: 13px;
         color: var(--paper-35);
-        margin: 14px 0 0;
+        margin: 10px 0 0;
       }
 
       @media (pointer: coarse) {
@@ -438,17 +438,17 @@ const contact = [
         }
 
         /*
-         * Shorter than the desktop hero. A tall narrow canvas has a low
-         * aspect, which makes the camera dolly back to fit and strands the
-         * slab in empty ground above and below; wider than tall keeps it
-         * filling the frame.
+         * Full-bleed and wider than tall, close to the slab's own landscape
+         * proportions so it fills the box instead of floating in a band of
+         * empty ground. The camera framing is set to match in home.ts.
+         * Nothing padded around it: the intro, the canvas, the hint and the
+         * work block sit directly on top of each other.
          */
         .terrain {
           position: static;
-          height: 34vh;
-          min-height: 220px;
-          max-height: 300px;
-          margin: 36px -24px 0;
+          height: auto;
+          aspect-ratio: 1 / 0.85;
+          margin: 0 -24px;
         }
 
         .lede {
@@ -475,6 +475,11 @@ const contact = [
 
         section + section {
           margin-top: 104px;
+        }
+
+        /* The work block follows the hint directly, not a section gap. */
+        .intro + section {
+          margin-top: 26px;
         }
 
         .work article + article {

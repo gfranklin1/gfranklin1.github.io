@@ -13,6 +13,15 @@ export const smallScreen = window.innerWidth < 760;
  */
 export const defaultGridRes = smallScreen || coarsePointer ? 32 : 48;
 
+/**
+ * True while the page is in its stacked layout. Read live rather than cached:
+ * a window can cross the breakpoint, and the two layouts frame the terrain
+ * differently. Matches the CSS breakpoint in index.astro.
+ */
+export function narrowLayout(): boolean {
+  return window.matchMedia('(max-width: 900px)').matches;
+}
+
 /** Cap the device pixel ratio; a 3x phone does not need 3x of this. */
 export function renderScale(): number {
   return Math.min(window.devicePixelRatio || 1, 1.75);
@@ -41,7 +50,8 @@ interface Pointable {
   beginDotDrag(which: 'start' | 'goal'): void;
   dragDotTo(px: number, py: number): void;
   endDotDrag(): void;
-  tap(px: number, py: number): 'retargeted' | 'placed';
+  tap(px: number, py: number): 'activated' | 'placed';
+  setCoarsePointer(on: boolean): void;
   readonly isDraggingDot: boolean;
 }
 
@@ -50,8 +60,8 @@ const TAP_SLOP_PX = 12;
 const TAP_MAX_MS = 600;
 
 /**
- * Endpoint placement by tapping, for touch. One tap on the ground moves the
- * goal; tapping the start dot redirects the following tap to the start.
+ * Endpoint placement by tapping, for touch. Tapping a dot makes it the active
+ * endpoint; tapping the ground moves whichever is active.
  *
  * Dragging is deliberately not offered here: the canvas would have to claim
  * the gesture on pointerdown, before it knows whether the finger started on a
@@ -84,6 +94,7 @@ function attachTapControls(canvas: HTMLCanvasElement, view: Pointable): void {
  * cursor deformation - there is no hover to drive it.
  */
 export function attachPointerControls(canvas: HTMLCanvasElement, view: Pointable): void {
+  view.setCoarsePointer(coarsePointer);
   if (coarsePointer) {
     attachTapControls(canvas, view);
     return;

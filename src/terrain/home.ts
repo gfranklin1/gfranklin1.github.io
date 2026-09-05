@@ -2,6 +2,7 @@ import {
   attachPointerControls,
   defaultGridRes,
   fitToCanvas,
+  narrowLayout,
   reducedMotion,
   scrollProgress,
 } from './env';
@@ -38,11 +39,20 @@ function init(): void {
     return;
   }
 
-  // The hero crops on the right and bottom at full size; back off so the slab
-  // sits inside the viewport with room to spare.
-  view.setFramingScale(0.85);
+  /*
+   * Desktop backs the camera off so the slab clears the type and sits inside
+   * the viewport. The narrow layout has the canvas to itself, so it fills it
+   * instead - the aspect-fit dolly would otherwise leave the slab marooned in
+   * empty ground. Re-applied on resize because the two layouts want different
+   * numbers and a window can cross the breakpoint.
+   */
+  const applyFraming = () => view.setFramingScale(narrowLayout() ? 0.91 : 0.85);
   fitToCanvas(view, canvas);
-  new ResizeObserver(() => fitToCanvas(view, canvas)).observe(canvas);
+  applyFraming();
+  new ResizeObserver(() => {
+    fitToCanvas(view, canvas);
+    applyFraming();
+  }).observe(canvas);
 
   let visible = true;
   new IntersectionObserver(

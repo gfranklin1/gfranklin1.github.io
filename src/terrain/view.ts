@@ -91,8 +91,16 @@ function smoothstep(edge0: number, edge1: number, x: number): number {
   return t * t * (3 - 2 * t);
 }
 
-/** How much larger an armed start dot draws. The only feedback there is. */
-const SELECTED_DOT_SCALE = 1.7;
+/**
+ * Touch affordances. A finger needs a bigger mark than a cursor does, and it
+ * needs to be obvious which endpoint the next tap will move, so both dots draw
+ * larger with a thin accent ring and the active one carries a wider, brighter
+ * ring than the idle one.
+ */
+const TOUCH_DOT_SCALE = 1.5;
+const RING_RADIUS_SCALE = 4.3;
+const ACTIVE_RING_SCALE = 1.5;
+const IDLE_RING_OPACITY = 0.3;
 
 /**
  * Tap radius on coarse pointers: a 44px target, the usual floor for a finger,
@@ -135,6 +143,13 @@ export class TerrainView {
   private goalDot: THREE.Mesh;
   private dotGeometry: THREE.SphereGeometry;
   private dotMaterial: THREE.MeshBasicMaterial;
+  private startRing: THREE.Mesh;
+  private goalRing: THREE.Mesh;
+  private ringGeometry: THREE.RingGeometry;
+  private activeRingMaterial: THREE.MeshBasicMaterial;
+  private idleRingMaterial: THREE.MeshBasicMaterial;
+  /** Touch affordances are off until a coarse-pointer page turns them on. */
+  private coarse = false;
 
   private slopeCost = 6;
   private needsPlan = true;
@@ -159,7 +174,13 @@ export class TerrainView {
   private readonly startUV: { u: number; v: number } = { u: ROUTE_START.u, v: ROUTE_START.v };
   private readonly goalUV: { u: number; v: number } = { u: ROUTE_GOAL.u, v: ROUTE_GOAL.v };
   private dragging: 'start' | 'goal' | null = null;
-  private nextTap: 'start' | 'goal' = 'goal';
+  /**
+   * Which endpoint a ground tap moves. Sticky: it stays put until the other
+   * dot is tapped, so repeated taps keep moving the same endpoint. The goal is
+   * the default, and both names refer to the same dots the desktop drags -
+   * never to whichever happens to be nearer the finger.
+   */
+  private active: 'start' | 'goal' = 'goal';
   private readonly projScratch = new THREE.Vector3();
   private pointerPlane: THREE.Plane;
   private raycaster = new THREE.Raycaster();
@@ -248,11 +269,31 @@ export class TerrainView {
     this.routeLine.frustumCulled = false;
     this.scene.add(this.routeLine);
 
-    this.dotGeometry = new THREE.SphereGeometry(variant.route.dotRadius, 12, 8);
+    const dotR = variant.route.dotRadius;
+    this.dotGeometry = new THREE.SphereGeometry(dotR, 12, 8);
     this.dotMaterial = new THREE.MeshBasicMaterial({ color: variant.route.color, fog: false });
     this.startDot = new THREE.Mesh(this.dotGeometry, this.dotMaterial);
     this.goalDot = new THREE.Mesh(this.dotGeometry, this.dotMaterial);
     this.scene.add(this.startDot, this.goalDot);
+
+    // A thin annulus, billboarded to the camera. Hidden entirely on a fine
+    // pointer, where the cursor change over a dot already says enough.
+    const ringR = dotR * RING_RADIUS_SCALE;
+    this.ringGeometry = new THREE.RingGeometry(ringR * 0.9, ringR, 48);
+    this.activeRingMaterial = new THREE.MeshBasicMaterial({
+      color: variant.route.color, fog: false, side: THREE.DoubleSide, transparent: true,
+    });
+    this.idleRingMaterial = new THREE.MeshBasicMaterial({
+      color: variant.route.color, fog: false, side: THREE.DoubleSide,
+      transparent: true, opacity: IDLE_RING_OPACITY,
+    });
+    this.startRing = new THREE.Mesh(this.ringGeometry, this.idleRingMaterial);
+    this.goalRing = new THREE.Mesh(this.ringGeometry, this.activeRingMaterial);
+    this.startRing.visible = false;
+    this.goalRing.visible = false;
+    this.startRing.frustumCulled = false;
+    this.goalRing.frustumCulled = false;
+    this.scene.add(this.startRing, this.goalRing);
 
     this.pointerPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -variant.style.base);
 
@@ -455,8 +496,12 @@ export class TerrainView {
     this.routeSegments.needsUpdate = true;
 
     this.startDot.position.set(out[0]!, out[1]!, out[2]!);
+    this.startRing.position.copy(this.startDot.position);
+    this.startRing.quaternion.copy(this.camera.quaternion);
+    this.goalRing.quaternion.copy(this.camera.quaternion);
     const last = (ROUTE_POINTS - 1) * 3;
     this.goalDot.position.set(out[last]!, out[last + 1]!, out[last + 2]!);
+    this.goalRing.position.copy(this.goalDot.position);
   }
 
   // ------------------------------------------------------------ dot dragging
@@ -469,12 +514,17 @@ export class TerrainView {
     return out;
   }
 
+  /** Screen-space distance from a point to one named dot. */
+  private distToDot(which: 'start' | 'goal', px: number, py: number): number {
+    const dot = which === 'start' ? this.startDot : this.goalDot;
+    const p = this.projectToScreen(dot.position, this.projScratch);
+    return Math.hypot(p.x - px, p.y - py);
+  }
+
   /** Nearest endpoint dot to a canvas-space point, and how far off it is. */
   private nearestDot(px: number, py: number): { which: 'start' | 'goal'; dist: number } {
-    const s = this.projectToScreen(this.startDot.position, this.projScratch);
-    const ds = Math.hypot(s.x - px, s.y - py);
-    const g = this.projectToScreen(this.goalDot.position, this.projScratch);
-    const dg = Math.hypot(g.x - px, g.y - py);
+    const ds = this.distToDot('start', px, py);
+    const dg = this.distToDot('goal', px, py);
     return ds <= dg ? { which: 'start', dist: ds } : { which: 'goal', dist: dg };
   }
 
@@ -525,34 +575,63 @@ export class TerrainView {
   }
 
   /** Which endpoint is armed for placing, if any. */
-  /** Which endpoint the next tap will place. Goal unless the start was tapped. */
-  get tapTarget(): 'start' | 'goal' {
-    return this.nextTap;
-  }
-
-  private setTapTarget(which: 'start' | 'goal'): void {
-    this.nextTap = which;
-    // No glow and no second colour to work with, so an armed start simply
-    // reads larger. The goal is the default and never needs the affordance.
-    this.startDot.scale.setScalar(which === 'start' ? SELECTED_DOT_SCALE : 1);
+  /** Which endpoint a ground tap will move. */
+  get activeEndpoint(): 'start' | 'goal' {
+    return this.active;
   }
 
   /**
-   * Touch interaction. A tap on the ground places an endpoint immediately -
-   * the goal by default, so the common case costs one tap and no arming step.
-   * Tapping the start dot redirects the next tap to the start instead, and
-   * that redirect lasts exactly until the tap that spends it.
-   *
-   * Coarse pointers get this instead of dragging, which would have to claim
-   * the gesture on pointerdown and stop the page scrolling.
+   * Turn on the touch affordances: larger dots, and rings that say which
+   * endpoint is active. A fine pointer gets neither.
    */
-  tap(px: number, py: number): 'retargeted' | 'placed' {
-    if (this.nextTap !== 'start' && this.dotAt(px, py, TOUCH_HIT_RADIUS_PX) === 'start') {
-      this.setTapTarget('start');
-      return 'retargeted';
+  setCoarsePointer(on: boolean): void {
+    this.coarse = on;
+    const scale = on ? TOUCH_DOT_SCALE : 1;
+    this.startDot.scale.setScalar(scale);
+    this.goalDot.scale.setScalar(scale);
+    this.startRing.visible = on;
+    this.goalRing.visible = on;
+    this.applyActiveMarking();
+  }
+
+  private applyActiveMarking(): void {
+    const startActive = this.active === 'start';
+    this.startRing.material = startActive ? this.activeRingMaterial : this.idleRingMaterial;
+    this.goalRing.material = startActive ? this.idleRingMaterial : this.activeRingMaterial;
+    // The active ring also sits wider, so the two read apart at a glance and
+    // not only by brightness.
+    this.startRing.scale.setScalar(startActive ? ACTIVE_RING_SCALE : 1);
+    this.goalRing.scale.setScalar(startActive ? 1 : ACTIVE_RING_SCALE);
+  }
+
+  private setActive(which: 'start' | 'goal'): void {
+    if (this.active === which) return;
+    this.active = which;
+    this.applyActiveMarking();
+  }
+
+  /**
+   * Touch interaction. Tapping a dot makes that endpoint active and moves
+   * nothing; tapping the ground moves whichever endpoint is active. The choice
+   * is sticky, so several taps in a row keep moving the same endpoint until
+   * the other dot is tapped.
+   *
+   * Both dots are hit-tested by name rather than by proximity, so the goal is
+   * always the same dot the desktop drag calls the goal.
+   */
+  tap(px: number, py: number): 'activated' | 'placed' {
+    const ds = this.distToDot('start', px, py);
+    const dg = this.distToDot('goal', px, py);
+    const hitStart = ds <= TOUCH_HIT_RADIUS_PX;
+    const hitGoal = dg <= TOUCH_HIT_RADIUS_PX;
+
+    if (hitStart || hitGoal) {
+      // Only when both targets overlap does distance decide between them.
+      this.setActive(hitStart && (!hitGoal || ds <= dg) ? 'start' : 'goal');
+      return 'activated';
     }
-    this.moveEndpoint(this.nextTap, px, py);
-    this.setTapTarget('goal');
+
+    this.moveEndpoint(this.active, px, py);
     return 'placed';
   }
 
@@ -835,6 +914,9 @@ export class TerrainView {
     this.routeMaterial.dispose();
     this.dotGeometry.dispose();
     this.dotMaterial.dispose();
+    this.ringGeometry.dispose();
+    this.activeRingMaterial.dispose();
+    this.idleRingMaterial.dispose();
     this.renderer.dispose();
   }
 }
