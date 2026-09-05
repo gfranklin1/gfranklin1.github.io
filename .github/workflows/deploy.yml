@@ -10,6 +10,13 @@ permissions:
   pages: write
   id-token: write
 
+# Without this, two overlapping runs can finish out of order and an older
+# commit's build can publish after a newer one, silently reverting the site.
+# Cancelling the in-progress run means the newest push always wins.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
